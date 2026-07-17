@@ -1,10 +1,6 @@
 #!/bin/bash
 
-#u can use zyc clang 14 if u're unsure what toolchain to use. https://github.com/ZyCromerZ/Clang/releases/tag/14.0.6-20250704-release
-# goodluck building sir
-# gore ubuntu 25.10 error fix: sudo ln -s /lib/x86_64-linux-gnu/libxml2.so.16 /lib/x86_64-linux-gnu/libxml2.so.2
-#edit the zyc clang directory name accordingly to ur toolchain.
-export TC=/home/vigus/zyc-clang
+export TC=/home/$USER/Android/ToolChain/ZyClang-14/
 
 export CROSS_COMPILE=$TC/bin/aarch64-linux-gnu-
 export LD=$TC/bin/ld.lld
@@ -27,7 +23,7 @@ export CFGDIR=arch/arm64/configs
 rm -rf $CFGDIR/compiled_defconfig
 make -C $(pwd) O=$(pwd)/out clean -j$(nproc) && make -C $(pwd) O=$(pwd)/out mrproper -j$(nproc)
 clear
- 
+
 read -p "`echo -e 'thanks for building slmkernel \ntell what device you wanna build for 💩💩 \nsupported devices: a32, a22, f22, m22(experimental), m32(experimental)  '`" choice
 case "$choice" in 
   a32|A32 ) export DEVICE="a32";;
@@ -41,15 +37,15 @@ esac
 #edit perf.config to battery.config to disable perf tweaks, dont use them at the same time!
 #add $CFGDIR/ksu.config at the end before ">" for ksu integration(optional)
 #example: build m22 battery life oriented karnal with ksu: $CFGDIR/mt6768_slm_defconfig $CFGDIR/"$DEVICE".config $CFGDIR/battery.config $CFGDIR/ksu.config
-cat $CFGDIR/mt6768_slm_defconfig $CFGDIR/"$DEVICE".config $CFGDIR/battery.config > $CFGDIR/compiled_defconfig
+cat $CFGDIR/mt6768_slm_defconfig $CFGDIR/"$DEVICE".config $CFGDIR/battery.config $CFGDIR/ksu.config > $CFGDIR/compiled_defconfig
 
 #selinux and gpu driver control
 #buildable: mali bifrost r25p0, mali valhall r32p1, mali avalon r49p1[WIP]
 echo '
-# CONFIG_ALWAYS_ENFORCE is not set
-CONFIG_ALWAYS_PERMISSIVE=y
+CONFIG_ALWAYS_ENFORCE=y
+# CONFIG_ALWAYS_PERMISSIVE is not set
 
-CONFIG_MTK_GPU_VERSION="mali valhall r32p1"
+CONFIG_MTK_GPU_VERSION="mali bifrost r25p0"
 ' >> "$CFGDIR/compiled_defconfig"
 
 make -C $(pwd) O=$(pwd)/out -j$(nproc) compiled_defconfig
@@ -76,13 +72,4 @@ if [ -f "$IMAGECHECK" ]; then
         echo
     fi
 
-    #only for me delete if u want 💩💩💩💩
-    read -p "copy to kernal directory? (are u vigus?) y/n   " choice
-    case "$choice" in 
-      y|Y ) cp out/arch/arm64/boot/Image ~/Downloads/buildkernal/Image;;
-      n|N ) echo "k";;
-      * ) echo "nvm";;
-    esac
-fi
-
-echo "$DEVICE"
+echo "Build for $DEVICE done!"
