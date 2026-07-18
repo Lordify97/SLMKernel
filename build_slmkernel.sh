@@ -71,5 +71,5 @@ if [ -f "$IMAGECHECK" ]; then
         echo "================================================================"
         echo
     fi
-
+fi
 echo "Build for $DEVICE done!"
