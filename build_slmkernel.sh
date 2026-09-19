@@ -1,88 +1,107 @@
 #!/bin/bash
+set -e
 
-#u can use zyc clang 14 if u're unsure what toolchain to use. https://github.com/ZyCromerZ/Clang/releases/tag/14.0.6-20250704-release
-# goodluck building sir
-# gore ubuntu 25.10 error fix: sudo ln -s /lib/x86_64-linux-gnu/libxml2.so.16 /lib/x86_64-linux-gnu/libxml2.so.2
-#edit the zyc clang directory name accordingly to ur toolchain.
-export TC=/home/vigus/zyc-clang
-
-export CROSS_COMPILE=$TC/bin/aarch64-linux-gnu-
-export LD=$TC/bin/ld.lld
-export OBJCOPY=$TC/bin/llvm-objcopy
-export AS=$TC/bin/llvm-as
-export NM=$TC/bin/llvm-nm
-export STRIP=$TC/bin/llvm-strip
-export OBJDUMP=$TC/bin/llvm-objdump
-export READELF=$TC/bin/llvm-readelf
-export CC=$TC/bin/clang
 export ARCH=arm64
+export SUBARCH=arm64
 
-export KCFLAGS=' -w -pipe -O3'
-export KCPPFLAGS=' -O3'
+export CROSS_COMPILE="$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-androidkernel-"
+export CC="$(pwd)/toolchain/clang/host/linux-x86/clang-r383902/bin/clang"
+export CLANG_TRIPLE=aarch64-linux-gnu-
+
+export KCFLAGS=-w
 export CONFIG_SECTION_MISMATCH_WARN_ONLY=y
 
-#setup configs directory
-export CFGDIR=arch/arm64/configs
+KERNEL_DIR="$(pwd)"
+OUT_DIR="$KERNEL_DIR/out"
+CFG_DIR="$KERNEL_DIR/arch/arm64/configs"
 
-rm -rf $CFGDIR/compiled_defconfig
-make -C $(pwd) O=$(pwd)/out clean -j$(nproc) && make -C $(pwd) O=$(pwd)/out mrproper -j$(nproc)
-clear
- 
-read -p "`echo -e 'thanks for building slmkernel \ntell what device you wanna build for 💩💩 \nsupported devices: a32, a22, f22, m22(experimental), m32(experimental)  '`" choice
-case "$choice" in 
-  a32|A32 ) export DEVICE="a32";;
-  a22|A22 ) export DEVICE="a22";;
-  f22|F22 ) export DEVICE="f22";;
-  m22|M22 ) export DEVICE="m22";;
-  m32|M32 ) export DEVICE="m32";;
-  * ) echo "u made a typo or $choice not supported yet srry 💩" && exit;;
-esac
+echo "=============================================="
+echo "SLM KERNEL BUILD"
+echo "=============================================="
+echo "ARCH: $ARCH"
+echo "SUBARCH: $SUBARCH"
+echo "Kernel: $KERNEL_DIR"
+echo "Output: $OUT_DIR"
+echo "=============================================="
 
-#edit perf.config to battery.config to disable perf tweaks, dont use them at the same time!
-#add $CFGDIR/ksu.config at the end before ">" for ksu integration(optional)
-#example: build m22 battery life oriented karnal with ksu: $CFGDIR/mt6768_slm_defconfig $CFGDIR/"$DEVICE".config $CFGDIR/battery.config $CFGDIR/ksu.config
-cat $CFGDIR/mt6768_slm_defconfig $CFGDIR/"$DEVICE".config $CFGDIR/battery.config > $CFGDIR/compiled_defconfig
+# Validate source configuration files
+for config in \
+    "$CFG_DIR/mt6768_slm_defconfig" \
+    "$CFG_DIR/a32.config" \
+    "$CFG_DIR/battery.config"; do
 
-#selinux and gpu driver control
-#buildable: mali bifrost r25p0, mali valhall r32p1, mali avalon r49p1[WIP]
-echo '
-# CONFIG_ALWAYS_ENFORCE is not set
-CONFIG_ALWAYS_PERMISSIVE=y
-
-CONFIG_MTK_GPU_VERSION="mali valhall r32p1"
-' >> "$CFGDIR/compiled_defconfig"
-
-make -C $(pwd) O=$(pwd)/out -j$(nproc) compiled_defconfig
-make -s -C $(pwd) O=$(pwd)/out -j$(nproc)
-
-IMAGECHECK="$(pwd)/out/arch/arm64/boot/Image"
-
-if [ -f "$IMAGECHECK" ]; then
-    echo "built slm for device: $DEVICE"
-    GPU_VER=$(sed -n 's/^CONFIG_MTK_GPU_VERSION="\([^"]*\)"/\1/p' \
-        "$(pwd)/out/.config")
-
-    if [ "$GPU_VER" != "mali bifrost r25p0" ]; then
-        echo
-        echo "================================================================"
-        echo "warning: non-stock gpu driver selected"
-        echo
-        echo "built gpu driver : $GPU_VER"
-        echo
-        echo "Flash a custom vendor.img that has the corresponding Mali userspace libs,"
-        echo "Flash a custom boot.img that has a modified DTS with the new driver support,"
-        echo "or your device may bootloop"
-        echo "================================================================"
-        echo
+    if [ ! -f "$config" ]; then
+        echo "ERROR: Missing config: $config"
+        exit 1
     fi
+done
 
-    #only for me delete if u want 💩💩💩💩
-    read -p "copy to kernal directory? (are u vigus?) y/n   " choice
-    case "$choice" in 
-      y|Y ) cp out/arch/arm64/boot/Image ~/Downloads/buildkernal/Image;;
-      n|N ) echo "k";;
-      * ) echo "nvm";;
-    esac
+# Fix legacy 4.14 Kconfig compatibility
+if grep -q 'source "scripts/Kconfig.include"' "$KERNEL_DIR/Kconfig"; then
+    cp "$KERNEL_DIR/Kconfig" "$KERNEL_DIR/Kconfig.backup"
+    sed -i '/source "scripts\/Kconfig.include"/d' "$KERNEL_DIR/Kconfig"
 fi
 
-echo "$DEVICE"
+# Normalize Sensorhub Kconfig files
+find "$KERNEL_DIR/drivers/sensorhub" \
+    -type f -name 'Kconfig*' \
+    -exec sed -i 's/\r//g' {} +
+
+# Build a combined defconfig
+rm -f "$CFG_DIR/compiled_defconfig"
+
+cat \
+    "$CFG_DIR/mt6768_slm_defconfig" \
+    "$CFG_DIR/a32.config" \
+    "$CFG_DIR/battery.config" \
+    > "$CFG_DIR/compiled_defconfig"
+
+if [ ! -s "$CFG_DIR/compiled_defconfig" ]; then
+    echo "ERROR: compiled_defconfig is empty"
+    exit 1
+fi
+
+echo "Generated defconfig:"
+wc -l "$CFG_DIR/compiled_defconfig"
+
+# Generate the kernel configuration
+make -C "$KERNEL_DIR" \
+    O="$OUT_DIR" \
+    ARCH=arm64 \
+    SUBARCH=arm64 \
+    KCFLAGS=-w \
+    CONFIG_SECTION_MISMATCH_WARN_ONLY=y \
+    compiled_defconfig
+
+# Verify generated .config
+if [ ! -s "$OUT_DIR/.config" ]; then
+    echo "ERROR: out/.config was not generated"
+    exit 1
+fi
+
+echo "Kernel configuration generated successfully"
+
+# Build kernel
+make -C "$KERNEL_DIR" \
+    O="$OUT_DIR" \
+    ARCH=arm64 \
+    SUBARCH=arm64 \
+    KCFLAGS=-w \
+    CONFIG_SECTION_MISMATCH_WARN_ONLY=y \
+    -j16
+
+# Copy Image
+if [ ! -f "$OUT_DIR/arch/arm64/boot/Image" ]; then
+    echo "ERROR: Image was not generated"
+    exit 1
+fi
+
+mkdir -p "$KERNEL_DIR/arch/arm64/boot"
+
+cp "$OUT_DIR/arch/arm64/boot/Image" \
+   "$KERNEL_DIR/arch/arm64/boot/Image"
+
+echo "=============================================="
+echo "BUILD COMPLETED SUCCESSFULLY"
+echo "=============================================="
+
