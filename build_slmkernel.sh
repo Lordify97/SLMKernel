@@ -4,8 +4,8 @@ set -e
 export ARCH=arm64
 export SUBARCH=arm64
 
-export CROSS_COMPILE="$(pwd)/toolchain/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/bin/aarch64-linux-androidkernel-"
-export CC="$(pwd)/toolchain/clang/host/linux-x86/clang-r383902/bin/clang"
+export CROSS_COMPILE="/home/$USER/Android/ToolChain/ZyClang-14/bin/aarch64-linux-androidkernel-"
+export CC="/home/$USER/Android/ToolChain/ZyClang-14/bin/"
 export CLANG_TRIPLE=aarch64-linux-gnu-
 
 export KCFLAGS=-w
@@ -28,7 +28,8 @@ echo "=============================================="
 for config in \
     "$CFG_DIR/mt6768_slm_defconfig" \
     "$CFG_DIR/a32.config" \
-    "$CFG_DIR/battery.config"; do
+    "$CFG_DIR/battery.config"
+    "$CFG_DIR/ksu.config"; do
 
     if [ ! -f "$config" ]; then
         echo "ERROR: Missing config: $config"
@@ -54,6 +55,7 @@ cat \
     "$CFG_DIR/mt6768_slm_defconfig" \
     "$CFG_DIR/a32.config" \
     "$CFG_DIR/battery.config" \
+    "$CFG_DIR/ksu.config" \
     > "$CFG_DIR/compiled_defconfig"
 
 if [ ! -s "$CFG_DIR/compiled_defconfig" ]; then
