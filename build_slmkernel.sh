@@ -1,12 +1,18 @@
 #!/bin/bash
 set -e
 
-export ARCH=arm64
-export SUBARCH=arm64
+export TC="/home/$USER/Android/ToolChain/ZyClang-14/"
 
-export CROSS_COMPILE="/home/$USER/Android/ToolChain/ZyClang-14/bin/aarch64-linux-androidkernel-"
-export CC="/home/$USER/Android/ToolChain/ZyClang-14/bin/"
-export CLANG_TRIPLE=aarch64-linux-gnu-
+export CROSS_COMPILE=$TC/bin/aarch64-linux-gnu-
+export LD=$TC/bin/ld.lld
+export OBJCOPY=$TC/bin/llvm-objcopy
+export AS=$TC/bin/llvm-as
+export NM=$TC/bin/llvm-nm
+export STRIP=$TC/bin/llvm-strip
+export OBJDUMP=$TC/bin/llvm-objdump
+export READELF=$TC/bin/llvm-readelf
+export CC=$TC/bin/clang
+export ARCH=arm64
 
 export KCFLAGS=-w
 export CONFIG_SECTION_MISMATCH_WARN_ONLY=y
@@ -28,7 +34,7 @@ echo "=============================================="
 for config in \
     "$CFG_DIR/mt6768_slm_defconfig" \
     "$CFG_DIR/a32.config" \
-    "$CFG_DIR/battery.config"
+    "$CFG_DIR/battery.config"\
     "$CFG_DIR/ksu.config"; do
 
     if [ ! -f "$config" ]; then
